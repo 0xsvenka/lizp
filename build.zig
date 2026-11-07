@@ -36,6 +36,7 @@ pub fn build(b: *std.Build) void {
         "src/forms.zig",
         "src/Gardener.zig",
         "src/lisp.zig",
+        "src/printer.zig",
         "src/reader.zig",
     };
     for (src_paths) |path| {
