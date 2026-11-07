@@ -4,13 +4,10 @@ pub const LispObject = union(enum) {
     nil,
     boolean: bool,
     integer: i64,
-    symbol: SymbolId,
+    symbol: []const u8,
     pair: Pair,
     function: Function,
 };
-
-pub const SymbolId = usize;
-pub const SymbolName = []const u8;
 
 pub const Pair = struct {
     car: *LispObject,
@@ -29,6 +26,6 @@ pub const Env = struct {
 };
 
 pub const Binding = struct {
-    id: SymbolId,
+    id: *LispObject,
     value: *LispObject,
 };

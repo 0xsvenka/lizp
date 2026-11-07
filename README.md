@@ -17,11 +17,13 @@ If something has no inner state, don't make it a struct.
 
 ### Constness of `LispObject`s
 
+In general, `LispObject`s are passed around via `*LispObject` pointers.
+
 - For parameters, prefer `*const LispObject`
-  - This allows both const and non-const arguments to be passed
+  - Prevents accidental mutation
   - When necessary, use `*LispObject` instead, e.g.:
     - To mutate the object
-    - To store the pointer in the `car`/`cdr` field of another object
+    - The object itself will be passed somewhere else, e.g., stored in the `car`/`cdr` field of another object
 - For return values, prefer `*LispObject`
   - This allows the returned pointer to be used anywhere, in both const and non-const contexts
   - When necessary, use `*const LispObject` instead

@@ -8,8 +8,6 @@ const testing = std.testing;
 
 const lisp = @import("lisp.zig");
 const LispObject = lisp.LispObject;
-const SymbolId = lisp.SymbolId;
-const SymbolName = lisp.SymbolName;
 
 const Gardener = @This();
 
@@ -40,7 +38,7 @@ pub fn printObject(
         .nil => try writer.writeAll("()"),
         .boolean => |value| try writer.writeAll(if (value) "#t" else "#f"),
         .integer => |value| try writer.print("{d}", .{value}),
-        .symbol => |value| try writer.writeAll(self.symbol_table.getName(value)),
+        .symbol => |value| try writer.print("{s}", .{value}),
         .pair => |pair| {
             try writer.writeByte('(');
 
@@ -135,12 +133,11 @@ test makeInteger {
 
     const ultimate_answer = try gardener.makeInteger(42);
     try testing.expect(ultimate_answer.* == .integer);
-    try testing.expectEqual(@as(i64, 42), ultimate_answer.integer);
+    try testing.expectEqual(42, ultimate_answer.integer);
 }
 
-pub fn makeSymbol(self: *Gardener, value: SymbolName) !*LispObject {
-    const symbol_id = try self.symbol_table.intern(value);
-    return self.allocateObject(.{ .symbol = symbol_id });
+pub fn makeSymbol(self: *Gardener, value: []const u8) !*LispObject {
+    return self.symbol_table.intern(value);
 }
 
 test makeSymbol {
@@ -150,27 +147,15 @@ test makeSymbol {
 
     const foo = try gardener.makeSymbol("FOO");
     try testing.expect(foo.* == .symbol);
-    try testing.expectEqual(0, foo.symbol);
-    try testing.expectEqualStrings(
-        gardener.symbol_table.names.items[foo.symbol],
-        "FOO",
-    );
+    try testing.expectEqualStrings("FOO", foo.symbol);
 
-    const lambda = try gardener.makeSymbol("lambda");
-    try testing.expect(lambda.* == .symbol);
-    try testing.expectEqual(1, lambda.symbol);
-    try testing.expectEqualStrings(
-        gardener.symbol_table.names.items[lambda.symbol],
-        "lambda",
-    );
+    const bar = try gardener.makeSymbol("2147483647");
+    try testing.expect(bar.* == .symbol);
+    try testing.expectEqualStrings("2147483647", bar.symbol);
 
     const foo2 = try gardener.makeSymbol("FOO");
     try testing.expect(foo2.* == .symbol);
-    try testing.expectEqual(0, foo2.symbol);
-    try testing.expectEqualStrings(
-        gardener.symbol_table.names.items[foo2.symbol],
-        "FOO",
-    );
+    try testing.expect(foo == foo2);
 }
 
 pub fn makePair(
@@ -198,49 +183,45 @@ pub fn makeFunction(
     });
 }
 
+/// Direct owner of symbols.
 const SymbolTable = struct {
     allocator: std.mem.Allocator,
-    /// Owns the symbol name strings.
-    names: std.ArrayList(SymbolName),
-    id_by_name: std.StringHashMap(SymbolId),
+    /// Owns the symbols as well as their name strings.
+    symbols_by_name: std.StringHashMap(*LispObject),
 
     fn init(allocator: std.mem.Allocator) SymbolTable {
         return .{
             .allocator = allocator,
-            .names = .empty,
-            .id_by_name = std.StringHashMap(SymbolId).init(allocator),
+            .symbols_by_name = std.StringHashMap(*LispObject).init(allocator),
         };
     }
 
     fn deinit(self: *SymbolTable) void {
-        self.id_by_name.deinit();
-
-        for (self.names.items) |name| {
+        var iter = self.symbols_by_name.iterator();
+        while (iter.next()) |entry| {
+            const name = entry.key_ptr.*;
+            const symbol = entry.value_ptr.*;
+            self.allocator.destroy(symbol);
             self.allocator.free(name);
         }
-        self.names.deinit(self.allocator);
+
+        self.symbols_by_name.deinit();
     }
 
-    fn intern(self: *SymbolTable, name: SymbolName) !SymbolId {
-        if (self.id_by_name.get(name)) |id| {
-            return id;
+    /// Returns the unique symbol of the given name.
+    fn intern(self: *SymbolTable, name: []const u8) !*LispObject {
+        if (self.symbols_by_name.get(name)) |symbol| {
+            return symbol;
         }
 
-        const id = self.names.items.len;
+        const name_owned = try self.allocator.dupe(u8, name);
+        errdefer self.allocator.free(name_owned);
 
-        const owned_name = try self.allocator.dupe(u8, name);
-        errdefer self.allocator.free(owned_name);
+        const symbol = try self.allocator.create(LispObject);
+        errdefer self.allocator.destroy(symbol);
 
-        try self.names.append(self.allocator, owned_name);
-        errdefer _ = self.names.pop();
-
-        try self.id_by_name.put(owned_name, id);
-
-        return id;
-    }
-
-    /// Assumes `id` is valid, i.e., `id < self.names.items.len`.
-    fn getName(self: *const SymbolTable, id: SymbolId) SymbolName {
-        return self.names.items[id];
+        symbol.* = .{ .symbol = name_owned };
+        try self.symbols_by_name.put(name_owned, symbol);
+        return symbol;
     }
 };
