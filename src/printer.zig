@@ -35,12 +35,11 @@ pub fn printObject(writer: *std.Io.Writer, obj: *const LispObject) !void {
 
 // TODO: other tests for printObject
 test "printObject prints an integer" {
-    var arena = std.heap.ArenaAllocator.init(testing.allocator);
-    defer arena.deinit();
-    var gardener = Gardener.init(arena.allocator());
+    const gpa = testing.allocator;
+    var gardener = Gardener.init(gpa);
+    defer gardener.deinit();
 
     const n = try gardener.makeInteger(42);
-
     var buf: [16]u8 = undefined;
     var writer = std.Io.Writer.fixed(&buf);
     try printObject(&writer, n);

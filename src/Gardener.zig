@@ -12,6 +12,7 @@ const LispObject = lisp.LispObject;
 const Gardener = @This();
 
 allocator: std.mem.Allocator,
+allocated_objs: std.AutoHashMap(*const LispObject, void),
 symbol_table: SymbolTable,
 
 nil: LispObject = .nil,
@@ -21,16 +22,29 @@ false_value: LispObject = .{ .boolean = false },
 pub fn init(allocator: std.mem.Allocator) Gardener {
     return .{
         .allocator = allocator,
+        .allocated_objs = std.AutoHashMap(*const LispObject, void).init(allocator),
         .symbol_table = SymbolTable.init(allocator),
     };
 }
 
 pub fn deinit(self: *Gardener) void {
     self.symbol_table.deinit();
+
+    var iter = self.allocated_objs.iterator();
+    while (iter.next()) |entry| {
+        const obj = entry.key_ptr.*;
+        self.allocator.destroy(obj);
+    }
+
+    self.allocated_objs.deinit();
 }
 
-fn allocateObject(self: *const Gardener, obj: LispObject) !*LispObject {
+fn allocateObject(self: *Gardener, obj: LispObject) !*LispObject {
     const ptr = try self.allocator.create(LispObject);
+    errdefer self.allocator.destroy(ptr);
+
+    try self.allocated_objs.put(ptr, {});
+
     ptr.* = obj;
     return ptr;
 }
@@ -40,9 +54,9 @@ pub fn makeNil(self: *Gardener) *LispObject {
 }
 
 test makeNil {
-    var arena = std.heap.ArenaAllocator.init(testing.allocator);
-    defer arena.deinit();
-    var gardener = Gardener.init(arena.allocator());
+    const gpa = testing.allocator;
+    var gardener = Gardener.init(gpa);
+    defer gardener.deinit();
 
     const nil = gardener.makeNil();
     try testing.expect(nil.* == .nil);
@@ -53,9 +67,9 @@ pub fn makeTrue(self: *Gardener) *LispObject {
 }
 
 test makeTrue {
-    var arena = std.heap.ArenaAllocator.init(testing.allocator);
-    defer arena.deinit();
-    var gardener = Gardener.init(arena.allocator());
+    const gpa = testing.allocator;
+    var gardener = Gardener.init(gpa);
+    defer gardener.deinit();
 
     const t = gardener.makeTrue();
     try testing.expect(t.* == .boolean);
@@ -67,27 +81,27 @@ pub fn makeFalse(self: *Gardener) *LispObject {
 }
 
 test makeFalse {
-    var arena = std.heap.ArenaAllocator.init(testing.allocator);
-    defer arena.deinit();
-    var gardener = Gardener.init(arena.allocator());
+    const gpa = testing.allocator;
+    var gardener = Gardener.init(gpa);
+    defer gardener.deinit();
 
     const f = gardener.makeFalse();
     try testing.expect(f.* == .boolean);
     try testing.expectEqual(false, f.boolean);
 }
 
-pub fn makeInteger(self: *const Gardener, value: i64) !*LispObject {
+pub fn makeInteger(self: *Gardener, value: i64) !*LispObject {
     return self.allocateObject(.{ .integer = value });
 }
 
 test makeInteger {
-    var arena = std.heap.ArenaAllocator.init(testing.allocator);
-    defer arena.deinit();
-    var gardener = Gardener.init(arena.allocator());
+    const gpa = testing.allocator;
+    var gardener = Gardener.init(gpa);
+    defer gardener.deinit();
 
-    const ultimate_answer = try gardener.makeInteger(42);
-    try testing.expect(ultimate_answer.* == .integer);
-    try testing.expectEqual(42, ultimate_answer.integer);
+    const answer = try gardener.makeInteger(42);
+    try testing.expect(answer.* == .integer);
+    try testing.expectEqual(42, answer.integer);
 }
 
 pub fn makeSymbol(self: *Gardener, value: []const u8) !*LispObject {
@@ -95,9 +109,9 @@ pub fn makeSymbol(self: *Gardener, value: []const u8) !*LispObject {
 }
 
 test makeSymbol {
-    var arena = std.heap.ArenaAllocator.init(testing.allocator);
-    defer arena.deinit();
-    var gardener = Gardener.init(arena.allocator());
+    const gpa = testing.allocator;
+    var gardener = Gardener.init(gpa);
+    defer gardener.deinit();
 
     const foo = try gardener.makeSymbol("FOO");
     try testing.expect(foo.* == .symbol);
@@ -113,7 +127,7 @@ test makeSymbol {
 }
 
 pub fn makePair(
-    self: *const Gardener,
+    self: *Gardener,
     car: *LispObject,
     cdr: *LispObject,
 ) !*LispObject {
@@ -123,7 +137,7 @@ pub fn makePair(
 }
 
 pub fn makeFunction(
-    self: *const Gardener,
+    self: *Gardener,
     params: *LispObject,
     body: *LispObject,
     env: *lisp.Env,
@@ -174,8 +188,9 @@ const SymbolTable = struct {
         const symbol = try self.allocator.create(LispObject);
         errdefer self.allocator.destroy(symbol);
 
-        symbol.* = .{ .symbol = name_owned };
         try self.symbols_by_name.put(name_owned, symbol);
+
+        symbol.* = .{ .symbol = name_owned };
         return symbol;
     }
 };
