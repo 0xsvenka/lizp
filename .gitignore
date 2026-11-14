@@ -1,5 +1,2 @@
 .zig-cache
 zig-out
-
-# just playing, not part of the project
-/src/String.zig

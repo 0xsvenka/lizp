@@ -4,14 +4,14 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    const mod = b.addModule("hi-zig", .{
+    const mod = b.addModule("lizp", .{
         .root_source_file = b.path("src/main.zig"),
         .target = target,
         .optimize = optimize,
     });
 
     const exe = b.addExecutable(.{
-        .name = "hi-zig",
+        .name = "lizp",
         .root_module = mod,
     });
     b.installArtifact(exe);
@@ -24,11 +24,11 @@ pub fn build(b: *std.Build) void {
     run_step.dependOn(&run.step);
 
     const check_exe = b.addExecutable(.{
-        .name = "hi-zig",
+        .name = "lizp",
         .root_module = mod,
     });
 
-    const check_step = b.step("check", "Check if hi-zig compiles");
+    const check_step = b.step("check", "Check if project compiles");
     check_step.dependOn(&check_exe.step);
 
     const test_step = b.step("test", "Run tests");
