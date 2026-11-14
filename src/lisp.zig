@@ -4,6 +4,8 @@ pub const LispObject = union(enum) {
     nil,
     boolean: bool,
     integer: i64,
+    /// Does not own its name string;
+    /// both directly owned by `SymbolTable`.
     symbol: []const u8,
     pair: Pair,
     function: Function,

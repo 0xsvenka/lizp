@@ -1,11 +1,12 @@
 const std = @import("std");
 const testing = std.testing;
+pub const Error = std.Io.Writer.Error;
 
 const Gardener = @import("Gardener.zig");
 const lisp = @import("lisp.zig");
 const LispObject = lisp.LispObject;
 
-pub fn printObject(writer: *std.Io.Writer, obj: *const LispObject) !void {
+pub fn printObject(writer: *std.Io.Writer, obj: *const LispObject) Error!void {
     switch (obj.*) {
         .nil => try writer.writeAll("()"),
         .boolean => |value| try writer.writeAll(if (value) "#t" else "#f"),

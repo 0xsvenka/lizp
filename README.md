@@ -8,6 +8,7 @@
 - Explicit error types & error details in `Gardener` and `Reader`
 - Lisp exception system
 - Garbage collection
+  - Currently, `Gardener` simply frees everything at `deinit()`
 
 ## Style guide
 

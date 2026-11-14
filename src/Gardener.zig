@@ -5,6 +5,7 @@
 
 const std = @import("std");
 const testing = std.testing;
+pub const Error = std.mem.Allocator.Error;
 
 const lisp = @import("lisp.zig");
 const LispObject = lisp.LispObject;
@@ -12,6 +13,8 @@ const LispObject = lisp.LispObject;
 const Gardener = @This();
 
 allocator: std.mem.Allocator,
+/// Objects dynamically allocated by this `Gardener` instance.
+/// Not including symbols, which are managed by `symbol_table`.
 allocated_objs: std.AutoHashMap(*const LispObject, void),
 symbol_table: SymbolTable,
 
@@ -39,7 +42,7 @@ pub fn deinit(self: *Gardener) void {
     self.allocated_objs.deinit();
 }
 
-fn allocateObject(self: *Gardener, obj: LispObject) !*LispObject {
+fn allocateObject(self: *Gardener, obj: LispObject) Error!*LispObject {
     const ptr = try self.allocator.create(LispObject);
     errdefer self.allocator.destroy(ptr);
 
@@ -90,7 +93,7 @@ test makeFalse {
     try testing.expectEqual(false, f.boolean);
 }
 
-pub fn makeInteger(self: *Gardener, value: i64) !*LispObject {
+pub fn makeInteger(self: *Gardener, value: i64) Error!*LispObject {
     return self.allocateObject(.{ .integer = value });
 }
 
@@ -104,7 +107,7 @@ test makeInteger {
     try testing.expectEqual(42, answer.integer);
 }
 
-pub fn makeSymbol(self: *Gardener, value: []const u8) !*LispObject {
+pub fn makeSymbol(self: *Gardener, value: []const u8) Error!*LispObject {
     return self.symbol_table.intern(value);
 }
 
@@ -123,17 +126,36 @@ test makeSymbol {
 
     const foo2 = try gardener.makeSymbol("FOO");
     try testing.expect(foo2.* == .symbol);
-    try testing.expect(foo == foo2);
+    try testing.expect(foo2 == foo);
 }
 
 pub fn makePair(
     self: *Gardener,
     car: *LispObject,
     cdr: *LispObject,
-) !*LispObject {
+) Error!*LispObject {
     return self.allocateObject(.{
         .pair = .{ .car = car, .cdr = cdr },
     });
+}
+
+test makePair {
+    const gpa = testing.allocator;
+    var gardener = Gardener.init(gpa);
+    defer gardener.deinit();
+
+    const foo = try gardener.makeSymbol("FOO");
+    const answer = try gardener.makeInteger(42);
+    const pair = try gardener.makePair(foo, answer);
+    try testing.expect(pair.* == .pair);
+
+    const car = pair.pair.car;
+    try testing.expect(car.* == .symbol);
+    try testing.expect(car == foo);
+
+    const cdr = pair.pair.cdr;
+    try testing.expect(cdr.* == .integer);
+    try testing.expect(cdr == answer);
 }
 
 pub fn makeFunction(
@@ -141,7 +163,7 @@ pub fn makeFunction(
     params: *LispObject,
     body: *LispObject,
     env: *lisp.Env,
-) !*LispObject {
+) Error!*LispObject {
     return self.allocateObject(.{
         .function = .{
             .params = params,
@@ -151,10 +173,19 @@ pub fn makeFunction(
     });
 }
 
-/// Direct owner of symbols.
+pub fn makeListOf2(self: *Gardener, first: *LispObject, second: *LispObject) Error!*LispObject {
+    return self.makePair(
+        first,
+        try self.makePair(
+            second,
+            self.makeNil(),
+        ),
+    );
+}
+
+/// Owner of symbols.
 const SymbolTable = struct {
     allocator: std.mem.Allocator,
-    /// Owns the symbols as well as their name strings.
     symbols_by_name: std.StringHashMap(*LispObject),
 
     fn init(allocator: std.mem.Allocator) SymbolTable {
@@ -176,8 +207,9 @@ const SymbolTable = struct {
         self.symbols_by_name.deinit();
     }
 
-    /// Returns the unique symbol of the given name.
-    fn intern(self: *SymbolTable, name: []const u8) !*LispObject {
+    /// Returns the unique symbol of the given name,
+    /// allocating the symbol if not already present.
+    fn intern(self: *SymbolTable, name: []const u8) Error!*LispObject {
         if (self.symbols_by_name.get(name)) |symbol| {
             return symbol;
         }
