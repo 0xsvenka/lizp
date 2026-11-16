@@ -9,7 +9,8 @@ const LispObject = lisp.LispObject;
 pub fn printObject(writer: *std.Io.Writer, obj: *const LispObject) Error!void {
     switch (obj.*) {
         .nil => try writer.writeAll("()"),
-        .boolean => |value| try writer.writeAll(if (value) "#t" else "#f"),
+        .t => try writer.writeAll("#t"),
+        .f => try writer.writeAll("#f"),
         .integer => |value| try writer.print("{d}", .{value}),
         .symbol => |value| try writer.print("{s}", .{value}),
         .pair => |pair| {

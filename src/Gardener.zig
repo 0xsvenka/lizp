@@ -19,8 +19,8 @@ allocated_objs: std.AutoHashMap(*const LispObject, void),
 symbol_table: SymbolTable,
 
 nil: LispObject = .nil,
-true_value: LispObject = .{ .boolean = true },
-false_value: LispObject = .{ .boolean = false },
+t: LispObject = .t,
+f: LispObject = .f,
 
 pub fn init(allocator: std.mem.Allocator) Gardener {
     return .{
@@ -66,7 +66,7 @@ test makeNil {
 }
 
 pub fn makeTrue(self: *Gardener) *LispObject {
-    return &self.true_value;
+    return &self.t;
 }
 
 test makeTrue {
@@ -75,12 +75,11 @@ test makeTrue {
     defer gardener.deinit();
 
     const t = gardener.makeTrue();
-    try testing.expect(t.* == .boolean);
-    try testing.expectEqual(true, t.boolean);
+    try testing.expect(t.* == .t);
 }
 
 pub fn makeFalse(self: *Gardener) *LispObject {
-    return &self.false_value;
+    return &self.f;
 }
 
 test makeFalse {
@@ -89,8 +88,7 @@ test makeFalse {
     defer gardener.deinit();
 
     const f = gardener.makeFalse();
-    try testing.expect(f.* == .boolean);
-    try testing.expectEqual(false, f.boolean);
+    try testing.expect(f.* == .f);
 }
 
 pub fn makeInteger(self: *Gardener, value: i64) Error!*LispObject {
@@ -171,16 +169,6 @@ pub fn makeFunction(
             .env = env,
         },
     });
-}
-
-pub fn makeListOf2(self: *Gardener, first: *LispObject, second: *LispObject) Error!*LispObject {
-    return self.makePair(
-        first,
-        try self.makePair(
-            second,
-            self.makeNil(),
-        ),
-    );
 }
 
 /// Owner of symbols.

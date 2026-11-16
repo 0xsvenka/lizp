@@ -4,6 +4,7 @@ A simple Lisp implementation, written in Zig.
 
 ## TODOs
 
+- Handle cyclic pairs (e.g., `(set-cdr! a a)`)
 - Complete the reader
 - Add tests
 
@@ -34,4 +35,4 @@ In general, `LispObject`s are passed around via `*LispObject` pointers.
   - When necessary, use `*const LispObject` instead
     - Although I haven't come up with any such scenario
 
-The only allowed mutation on a `LispObject` is modifying the `car`/`cdr`, given that this object is a pair. **NEVER** mutate any other type of object (`nil`, `boolean`, `integer`, `symbol`, etc.).
+The only allowed mutation on a `LispObject` is modifying the `car`/`cdr`, provided that this object is a pair. **NEVER** mutate any other type of object.

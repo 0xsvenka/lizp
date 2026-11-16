@@ -47,7 +47,8 @@ pub const Reader = struct {
     }
 
     fn is_delimiter(ch: u8) bool {
-        return std.ascii.isWhitespace(ch) or ch == '(' or ch == ')' or ch == '\'';
+        return std.ascii.isWhitespace(ch) or
+            ch == '(' or ch == ')' or ch == '\'';
     }
 
     /// If the reader is already at EOF, returns `ReaderError.UnexpectedEOF`.
@@ -66,7 +67,9 @@ pub const Reader = struct {
             },
             '.' => {
                 const next_pos = self.pos + 1;
-                if (next_pos >= self.source.len or is_delimiter(self.source[next_pos])) {
+                if (next_pos >= self.source.len or
+                    is_delimiter(self.source[next_pos]))
+                {
                     // a single dot
                     return ReaderError.UnexpectedChar;
                 } else {
@@ -83,9 +86,12 @@ pub const Reader = struct {
     /// Assumes the next character is `'`.
     fn parseQuote(self: *Reader) Error!*LispObject {
         self.advance();
-        return self.gardener.makeListOf2(
+        return self.gardener.makePair(
             try self.gardener.makeSymbol("quote"),
-            try self.nextObject(),
+            try self.gardener.makePair(
+                try self.nextObject(),
+                self.gardener.makeNil(),
+            ),
         );
     }
 
@@ -124,6 +130,7 @@ pub const Reader = struct {
     fn parseParen(self: *Reader) Error!*LispObject {
         self.advance();
         var cars: std.ArrayList(*LispObject) = .empty;
+        defer cars.deinit(self.gardener.allocator);
 
         while (true) {
             self.skipWhitespace();
